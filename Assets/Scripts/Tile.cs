@@ -17,7 +17,7 @@ public class Tile : MonoBehaviour
     [SerializeField]
     private Sprite[] tileSprites;
     [SerializeField]
-    private TileType currentTile;
+    private TileType tileType;
 
     // Fields for dragging functions
     private GameObject[] balls;
@@ -49,10 +49,10 @@ public class Tile : MonoBehaviour
         }
     }
 
-    public TileType CurrentTile
+    public TileType TileType
     {
-        get { return currentTile; }
-        set { currentTile = value; }
+        get { return tileType; }
+        set { tileType = value; }
     }
 
     public bool IsChecked
@@ -93,9 +93,9 @@ public class Tile : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        if (!dragged && currentTile != TileType.EMPTY)
+        if (!dragged && tileType != TileType.EMPTY)
         {
-            currentBall = balls[(int)currentTile - 1];
+            currentBall = balls[(int)tileType - 1];
             currentBallPos = currentBall.transform.position;
         }
         UpdateVisual();
@@ -103,7 +103,7 @@ public class Tile : MonoBehaviour
 
     void UpdateVisual()
     {
-        sr.sprite = tileSprites[(int)currentTile];
+        sr.sprite = tileSprites[(int)tileType];
     }
 
     public void ConnectTiles(int x, int y, GameObject[,] tileArray)
@@ -151,7 +151,7 @@ public class Tile : MonoBehaviour
         {
             Tile nextTile = surroundingTiles[direction].GetComponent<Tile>();
 
-            if (nextTile.CurrentTile == currentTile)
+            if (nextTile.TileType == tileType)
             {
                 isComplete = nextTile.MatchTile(count + 1, direction);
             }
@@ -174,21 +174,26 @@ public class Tile : MonoBehaviour
                 GameObject nextTile = null;
                 Tile nextTileScript = null;
 
-                if (surroundingTiles[i] != null && surroundingTiles[i].GetComponent<Tile>().CurrentTile != TileType.EMPTY)
+                if (surroundingTiles[i] != null && surroundingTiles[i].GetComponent<Tile>().TileType != TileType.EMPTY)
                 {
                     nextTile = surroundingTiles[i];
                     nextTileScript = nextTile.GetComponent<Tile>();
                 }
                 else continue;
 
-                if (nextTileScript.CurrentTile == currentTile)
+                if (nextTileScript.TileType == tileType)
                 {
                     isMatch = true;
-                    // Else, check all surrounding tiles for a match
                     if (direction < 0)
                         isComplete |= nextTileScript.GetComponent<Tile>().MatchTile(count + 1, i);
                 }
             }
+        }
+
+        if(!isMatch && count >= 5)
+        {
+            isCleared = true;
+            return true;
         }
 
         if(!isCleared)
@@ -201,7 +206,7 @@ public class Tile : MonoBehaviour
 
     private void OnMouseDown()
     {
-        if (manager.canMove)
+        if (manager.canMove && tileType != TileType.EMPTY)
         {
             dragged = true;
             sr.sprite = tileSprites[0];
@@ -210,7 +215,7 @@ public class Tile : MonoBehaviour
 
     private void OnMouseDrag()
     {
-        if (currentTile != TileType.EMPTY && manager.canMove)
+        if (tileType != TileType.EMPTY && manager.canMove)
         {
             Vector3 curScreenPoint = new Vector3(Input.mousePosition.x, Input.mousePosition.y, 0.0f);
             Vector3 curPosition = Camera.main.ScreenToWorldPoint(curScreenPoint);
@@ -221,7 +226,7 @@ public class Tile : MonoBehaviour
 
     private void OnMouseUp()
     {
-        if (manager.canMove)
+        if (manager.canMove && tileType != TileType.EMPTY)
         {
             currentBall.transform.position = currentBallPos;
             dragged = false;
@@ -236,10 +241,10 @@ public class Tile : MonoBehaviour
             Tile newTileScript = hit.collider.gameObject.GetComponent<Tile>();
 
             // Check if the tile is in the 4 directions of the original tile and is empty
-            if ((coord.x == newTileScript.coord.x || coord.y == newTileScript.coord.y) && newTileScript.CurrentTile == TileType.EMPTY)
+            if ((coord.x == newTileScript.coord.x || coord.y == newTileScript.coord.y) && newTileScript.TileType == TileType.EMPTY)
             {
-                newTileScript.CurrentTile = currentTile;
-                currentTile = TileType.EMPTY;
+                newTileScript.TileType = tileType;
+                tileType = TileType.EMPTY;
 
                 manager.canMove = false;
             }
