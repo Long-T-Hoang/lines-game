@@ -35,7 +35,7 @@ public class GameManager : MonoBehaviour
     private Vector2[] randomSpawnPos;
 
     private int score;
-    private int currentTime;
+    private float time;
     private bool gameFinish;
 
     // GUI elements
@@ -51,6 +51,10 @@ public class GameManager : MonoBehaviour
     private TextMeshProUGUI pauseResumeTextMesh;
     [SerializeField]
     private GameObject startScene;
+    [SerializeField]
+    private GameObject endScene;
+    [SerializeField]
+    private GameObject endSceneScore;
 
     // Preview for random spawn
     [SerializeField]
@@ -100,7 +104,7 @@ public class GameManager : MonoBehaviour
         }
 
         score = 0;
-        currentTime = 0;
+        time = 0;
 
         Time.timeScale = 0.0f;
         currentState = GameState.NONE;
@@ -126,9 +130,9 @@ public class GameManager : MonoBehaviour
     // Format and update time GUI element
     private void UpdateTime()
     {
-        int time = (int)Time.time + currentTime;
-        int minute = time / 60;
-        int second = time % 60;
+        time += Time.deltaTime;
+        int minute = (int)time / 60;
+        int second = (int)time % 60;
         string timeString = string.Format("{0:00}:{1:00}", minute, second);
         timeTextMesh.SetText(timeString);
     }
@@ -141,23 +145,11 @@ public class GameManager : MonoBehaviour
             switch (currentState)
             {
                 case GameState.SPAWN:
-                    #region Spawn random balls
-                    RandomSpawnPosition();
-
-                    for (int i = 0; i < randomSpawnQueue.Length; i++)
-                    {
-                        int x = (int)randomSpawnPos[i].x;
-                        int y = (int)randomSpawnPos[i].y;
-
-                        tileArray[x, y].GetComponent<Tile>().TileType = randomSpawnQueue[i];
-                    }
-
-                    RandomSpawnColor();
-
+                    RandomSpawn();
+                    MatchTiles();
                     currentState = GameState.MOVE;
                     canMove = true;
                     break;
-                    #endregion
 
                 case GameState.MOVE:
                     #region Let the player move the balls between tiles
@@ -170,44 +162,9 @@ public class GameManager : MonoBehaviour
                     #endregion
 
                 case GameState.MATCH:
-                    #region Search for matching tiles and increment point based on result
-                    for (int y = 0; y < play_area_size; y++)
-                    {
-                        for (int x = 0; x < play_area_size; x++)
-                        {
-                            Tile currentTile = tileArray[x, y].GetComponent<Tile>();
-                            if (!currentTile.IsCleared && currentTile.TileType != TileType.EMPTY)
-                            {
-                                currentTile.MatchTile(1);
-                            }
-                        }
-                    }
-
-                    for (int y = 0; y < play_area_size; y++)
-                    {
-                        for (int x = 0; x < play_area_size; x++)
-                        {
-                            Tile currentTile = tileArray[x, y].GetComponent<Tile>();
-
-                            // Reset check flag
-                            currentTile.IsChecked = false;
-                            
-                            // Destroy balls and increment score
-                            if (currentTile.IsCleared)
-                            {
-                                score++;
-                                currentTile.TileType = TileType.EMPTY;
-                                currentTile.IsCleared = false;
-                            }
-                        }
-                    }
-
-                    scoreTextMesh.SetText(score.ToString());
-
+                    MatchTiles();
                     currentState = GameState.SPAWN;
-                    //gameFinish = !gameFinish;
                     break;
-                #endregion
 
                 default:
                     yield return null;
@@ -229,10 +186,67 @@ public class GameManager : MonoBehaviour
                 }
             }
 
+            // Check for game over state
             if (filled_tile_count >= 81)
-                gameFinish = true;
+            {
+                endSceneScore.GetComponent<TextMeshProUGUI>().SetText(score.ToString());
+                Time.timeScale = 0.0f;
+                //gameFinish = true;
+                endScene.SetActive(true);
+            }
         }
     }    
+
+    private void MatchTiles()
+    {
+        for (int y = 0; y < play_area_size; y++)
+        {
+            for (int x = 0; x < play_area_size; x++)
+            {
+                Tile currentTile = tileArray[x, y].GetComponent<Tile>();
+                if (!currentTile.IsCleared && currentTile.TileType != TileType.EMPTY)
+                {
+                    currentTile.MatchTile(1);
+                }
+            }
+        }
+
+        for (int y = 0; y < play_area_size; y++)
+        {
+            for (int x = 0; x < play_area_size; x++)
+            {
+                Tile currentTile = tileArray[x, y].GetComponent<Tile>();
+
+                // Reset check flag
+                currentTile.IsChecked = false;
+
+                // Destroy balls and increment score
+                if (currentTile.IsCleared)
+                {
+                    score++;
+                    currentTile.TileType = TileType.EMPTY;
+                    currentTile.IsCleared = false;
+                }
+            }
+        }
+
+        scoreTextMesh.SetText(score.ToString());
+    }
+
+    private void RandomSpawn()
+    {
+        RandomSpawnPosition();
+
+        for (int i = 0; i < randomSpawnQueue.Length; i++)
+        {
+            int x = (int)randomSpawnPos[i].x;
+            int y = (int)randomSpawnPos[i].y;
+
+            tileArray[x, y].GetComponent<Tile>().TileType = randomSpawnQueue[i];
+        }
+
+        RandomSpawnColor();
+    }
 
     // Randomize colors for next 3 balls
     private void RandomSpawnColor()
@@ -272,7 +286,7 @@ public class GameManager : MonoBehaviour
     public void SaveState()
     {
         GameData data = new GameData();
-        data.time = (int)Time.time;
+        data.time = (int)time;
         data.score = score;
         data.state = currentState.ToString();
         data.tileArray = new List<string>();
@@ -301,7 +315,7 @@ public class GameManager : MonoBehaviour
             GameData data = JsonUtility.FromJson<GameData>(fileContents);
 
             score = data.score;
-            currentTime = data.time;
+            time = data.time;
             currentState = (GameState)System.Enum.Parse(typeof(GameState), data.state);
 
             for(int i = 0; i < data.tileArray.Count; i++)
@@ -350,6 +364,26 @@ public class GameManager : MonoBehaviour
     {
         Time.timeScale = 1.0f;
         currentState = lastState;
+    }
+
+    public void RestartGame()
+    {
+        time = 0.0f;
+        score = 0;
+
+        // Reset all tiles
+        for(int y = 0; y < play_area_size; y++)
+        {
+            for(int x = 0; x < play_area_size; x++)
+            {
+                tileArray[x, y].GetComponent<Tile>().TileType = TileType.EMPTY;
+            }
+        }
+
+        RandomSpawnColor();
+        Time.timeScale = 1.0f;
+        currentState = GameState.SPAWN;
+        endScene.SetActive(false);
     }
     #endregion
 
